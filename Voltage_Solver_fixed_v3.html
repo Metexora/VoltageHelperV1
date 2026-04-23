@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚡ VOLTAGE SOLVER</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --bg:          #030c18;
+      --surface:     #07172a;
+      --card:        #0d2040;
+      --border:      #1a3a5c;
+      --border-hi:   #2a5a8c;
+      --cyan:        #00e5ff;
+      --cyan-d:      rgba(0,229,255,.12);
+      --red:         #ff304f;
+      --red-d:       rgba(255,48,79,.15);
+      --green:       #00ff8c;
+      --green-d:     rgba(0,255,140,.12);
+      --amber:       #ffc020;
+      --text:        #c0d8f4;
+      --muted:       #3a6080;
+      --font-h:      'Orbitron', monospace;
+      --font-m:      'Share Tech Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-m);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 28px 16px 48px;
+      background-image:
+        radial-gradient(ellipse 60% 40% at 10% 5%, rgba(0,229,255,.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 35% at 90% 95%, rgba(255,48,79,.05) 0%, transparent 60%);
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,0,0,.04) 3px, rgba(0,0,0,.04) 4px
+      );
+      pointer-events: none; z-index: 9999;
+    }
+
+    .app {
+      width: min(96vw, 500px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      text-align: center;
+      padding: 8px 0 4px;
+    }
+    .title {
+      font-family: var(--font-h);
+      font-size: clamp(22px, 6vw, 30px);
+      font-weight: 900;
+      letter-spacing: .14em;
+      color: var(--cyan);
+      text-shadow: 0 0 24px rgba(0,229,255,.55), 0 0 50px rgba(0,229,255,.2);
+    }
+    .title em { color: var(--red); font-style: normal; text-shadow: 0 0 24px rgba(255,48,79,.5); }
+    .subtitle {
+      margin-top: 5px;
+      font-size: 10px;
+      letter-spacing: .22em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* ── PANEL ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .panel-lbl {
+      font-family: var(--font-h);
+      font-size: 8px;
+      letter-spacing: .28em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* ── DROP ZONE ── */
+    .dropzone {
+      border: 2px dashed var(--border-hi);
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--card);
+      user-select: none;
+    }
+    .dropzone:hover, .dropzone.over {
+      border-color: var(--cyan);
+      background: var(--cyan-d);
+    }
+    .dropzone-icon { font-size: 30px; display: block; margin-bottom: 8px; }
+    .dropzone-title { font-size: 13px; color: var(--text); margin-bottom: 4px; }
+    .dropzone-hint  { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+    .dropzone input[type="file"] { display: none; }
+
+    /* ── PREVIEW ── */
+    .preview-wrap {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      display: none;
+    }
+    .preview-wrap.on { display: block; }
+    .preview-wrap img { width: 100%; display: block; max-height: 300px; object-fit: contain; background: #000; }
+    .preview-bar {
+      position: absolute; top: 6px; right: 6px;
+      display: flex; gap: 6px;
+    }
+    .pbtn {
+      background: rgba(7,23,42,.88);
+      border: 1px solid var(--border-hi);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--font-m);
+      font-size: 10px;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .pbtn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    /* ── OCR PROGRESS ── */
+    .ocr-row {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .ocr-row.on { display: flex; }
+    .ocr-track {
+      flex: 1; height: 3px;
+      background: var(--card);
+      border-radius: 99px; overflow: hidden;
+    }
+    .ocr-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      border-radius: 99px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+    .ocr-txt {
+      font-size: 10px;
+      letter-spacing: .1em;
+      color: var(--cyan);
+      min-width: 72px;
+      text-align: right;
+    }
+
+    /* ── OCR TIPS ── */
+    .tips {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .tips span { color: var(--amber); }
+
+    /* ── TARGET ── */
+    .target-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .target-lbl {
+      font-family: var(--font-h);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      color: var(--red);
+      white-space: nowrap;
+    }
+    #targetInput {
+      flex: 1;
+      background: var(--card);
+      border: 2px solid var(--red);
+      border-radius: 8px;
+      color: var(--red);
+      font-family: var(--font-h);
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      padding: 10px 8px;
+      outline: none;
+      letter-spacing: .08em;
+      box-shadow: 0 0 18px rgba(255,48,79,.15), inset 0 0 10px rgba(255,48,79,.06);
+      transition: box-shadow .18s;
+      -moz-appearance: textfield; appearance: textfield;
+    }
+    #targetInput::-webkit-outer-spin-button,
+    #targetInput::-webkit-inner-spin-button { -webkit-appearance: none; }
+    #targetInput:focus {
+      box-shadow: 0 0 28px rgba(255,48,79,.3), inset 0 0 12px rgba(255,48,79,.1);
+    }
+    .target-v {
+      font-family: var(--font-h);
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ── VOLTAGE GRID ── */
+    .vgrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .vcard {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      transition: all .2s;
+      position: relative;
+    }
+    .vcard.matched {
+      border-color: var(--green);
+      background: rgba(0,255,140,.06);
+      box-shadow: 0 0 22px rgba(0,255,140,.2), inset 0 0 10px rgba(0,255,140,.05);
+    }
+    .vcard.unmatched { opacity: .35; }
+
+    .vcard-idx {
+      position: absolute;
+      top: 5px; left: 7px;
+      font-size: 8px;
+      color: var(--muted);
+      letter-spacing: .08em;
+    }
+
+    .vcard-ocr-badge {
+      position: absolute;
+      top: 5px; right: 7px;
+      font-size: 7px;
+      letter-spacing: .1em;
+      color: var(--cyan);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .vcard-ocr-badge.on { opacity: 1; }
+
+    .vinput {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-hi);
+      color: var(--text);
+      font-family: var(--font-h);
+      font-size: 21px;
+      font-weight: 700;
+      text-align: center;
+      width: 100%;
+      outline: none;
+      padding: 2px 0 4px;
+      letter-spacing: .04em;
+      transition: color .2s, border-color .2s;
+      -moz-appearance: textfield; appearance: textfield;
+    }
+    .vinput::-webkit-outer-spin-button,
+    .vinput::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .vinput:focus { border-bottom-color: var(--cyan); color: var(--cyan); }
+    .vcard.matched .vinput { color: var(--green); border-bottom-color: var(--green); }
+
+    .vsuffix {
+      font-family: var(--font-h);
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: .1em;
+      position: absolute;
+      right: 13px; top: 16px;
+      pointer-events: none;
+    }
+    .vcard.matched .vsuffix { color: var(--green); }
+
+    .vtoggle {
+      width: 76px; height: 26px;
+      border-radius: 5px; border: none;
+      font-family: var(--font-m);
+      font-size: 12px; font-weight: bold;
+      letter-spacing: .15em;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .vtoggle.off {
+      background: var(--red-d);
+      border: 1px solid var(--red);
+      color: var(--red);
+    }
+    .vtoggle.on {
+      background: var(--green-d);
+      border: 1px solid var(--green);
+      color: var(--green);
+    }
+    .vtoggle:hover { transform: translateY(-1px); }
+
+    /* ── ACTIONS ── */
+    .actions { display: flex; gap: 10px; }
+
+    .btn-solve {
+      flex: 1; height: 52px;
+      border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #007ab8, #005a96);
+      color: #fff;
+      font-family: var(--font-h);
+      font-size: 12px; font-weight: 700;
+      letter-spacing: .22em;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,122,184,.35);
+      transition: all .18s;
+      text-transform: uppercase;
+    }
+    .btn-solve:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,122,184,.45); }
+    .btn-solve:active { transform: translateY(0); }
+
+    .btn-reset {
+      height: 52px; padding: 0 18px;
+      border: 1px solid var(--border-hi);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-m);
+      font-size: 12px; letter-spacing: .1em;
+      cursor: pointer; transition: all .18s;
+    }
+    .btn-reset:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── RESULT ── */
+    .result {
+      text-align: center;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px; letter-spacing: .04em;
+      display: none;
+      line-height: 1.5;
+    }
+    .result.ok {
+      display: block;
+      background: var(--green-d);
+      border: 1px solid var(--green);
+      color: var(--green);
+    }
+    .result.err {
+      display: block;
+      background: var(--red-d);
+      border: 1px solid var(--red);
+      color: var(--red);
+    }
+    .result.info {
+      display: block;
+      background: rgba(0,229,255,.08);
+      border: 1px solid rgba(0,229,255,.35);
+      color: var(--cyan);
+    }
+
+    /* ── SUM DISPLAY ── */
+    .sum-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--muted);
+      padding: 0 2px;
+    }
+    .sum-val { color: var(--amber); font-family: var(--font-h); font-size: 13px; }
+
+    /* hidden canvas */
+    #ppCanvas { display: none; }
+
+    @media (max-width: 420px) {
+      .title { font-size: 20px; }
+      .vgrid { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── HEADER ── -->
+  <div class="header">
+    <div class="title">⚡ VOLT<em>AGE</em> SOLVER</div>
+    <div class="subtitle">subset-sum · ocr · game assistant</div>
+  </div>
+
+  <!-- ── OCR PANEL ── -->
+  <div class="panel">
+    <div class="panel-lbl">📷 Screenshot Input</div>
+
+    <div class="dropzone" id="dropzone">
+      <span class="dropzone-icon">🖼️</span>
+      <div class="dropzone-title">Drop screenshot · click to browse · Ctrl+V paste</div>
+      <div class="dropzone-hint">PNG / JPG from any game client</div>
+      <input type="file" id="fileInput" accept="image/*" />
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" alt="screenshot" />
+      <div class="preview-bar">
+        <button class="pbtn" id="reOcrBtn">↺ Re-OCR</button>
+        <button class="pbtn" id="clearImgBtn">✕</button>
+      </div>
+    </div>
+
+    <div class="ocr-row" id="ocrRow">
+      <div class="ocr-track"><div class="ocr-fill" id="ocrFill"></div></div>
+      <div class="ocr-txt" id="ocrTxt">INIT...</div>
+    </div>
+
+    <div class="tips" id="ocrTips">
+      <span>TIP:</span> For best OCR, use a raw unscaled screenshot. The preprocessing now preserves red target text better, but you can still edit any value manually below.
+    </div>
+  </div>
+
+  <!-- ── TARGET ── -->
+  <div class="panel">
+    <div class="panel-lbl">🎯 Target Voltage</div>
+    <div class="target-row">
+      <div class="target-lbl">TARGET</div>
+      <input type="number" id="targetInput" placeholder="0" autocomplete="off" />
+      <div class="target-v">V</div>
+    </div>
+  </div>
+
+  <!-- ── VOLTAGE GRID ── -->
+  <div class="panel">
+    <div class="panel-lbl">⚡ Channel Voltages</div>
+    <div class="vgrid" id="vgrid"></div>
+    <div class="sum-row" style="margin-top:12px;">
+      <span>Selected sum</span>
+      <span class="sum-val" id="sumDisplay">0 V</span>
+    </div>
+  </div>
+
+  <!-- ── ACTIONS ── -->
+  <div class="actions">
+    <button class="btn-solve" id="solveBtn">⚡ SOLVE</button>
+    <button class="btn-reset" id="resetBtn">RESET</button>
+  </div>
+
+  <div class="result" id="result"></div>
+
+</div>
+
+<!-- Hidden preprocessing canvas -->
+<canvas id="ppCanvas"></canvas>
+
+<script>
+// ────────────────────────────────────────────────────────────────────────────
+// CONFIG
+// ────────────────────────────────────────────────────────────────────────────
+const SLOTS = 8;
+const OCR_SCALE = 3;          // upscale factor before OCR
+const CONTRAST  = 2.2;        // contrast multiplier for preprocessing
+const THRESHOLD = 128;        // binary threshold after contrast stretch
+
+// Explicit CDN paths stop Tesseract workers/core/lang files from failing silently
+const TESSERACT_WORKER_PATH = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/worker.min.js';
+const TESSERACT_CORE_PATH   = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@4/tesseract-core-simd.wasm.js';
+const TESSERACT_LANG_PATH   = 'https://tessdata.projectnaptha.com/4.0.0/';
+
+// ────────────────────────────────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────────────────────────────────
+let toggles = new Array(SLOTS).fill(false);   // manual toggles
+let ocrBadges = new Array(SLOTS).fill(false); // track which slots came from OCR
+
+// ────────────────────────────────────────────────────────────────────────────
+// BUILD GRID
+// ────────────────────────────────────────────────────────────────────────────
+const vgrid = document.getElementById('vgrid');
+
+for (let i = 0; i < SLOTS; i++) {
+  const c = document.createElement('div');
+  c.className = 'vcard';
+  c.dataset.i = i;
+  c.innerHTML = `
+    <span class="vcard-idx">CH${String(i+1).padStart(2,'0')}</span>
+    <span class="vcard-ocr-badge" id="badge${i}">OCR</span>
+    <input type="number" class="vinput" id="v${i}" placeholder="${i+1}" autocomplete="off" />
+    <span class="vsuffix">V</span>
+    <button class="vtoggle off" data-i="${i}">OFF</button>
+  `;
+  vgrid.appendChild(c);
+}
+
+// Toggle buttons (manual)
+document.querySelectorAll('.vtoggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const i = +btn.dataset.i;
+    toggles[i] = !toggles[i];
+    applyToggle(i, toggles[i]);
+    updateSumDisplay();
+    clearSolveHighlight();
+  });
+});
+
+function applyToggle(i, on) {
+  toggles[i] = on;
+  const btn = document.querySelector(`.vtoggle[data-i="${i}"]`);
+  if (!btn) return;
+  btn.textContent = on ? 'ON' : 'OFF';
+  btn.className = `vtoggle ${on ? 'on' : 'off'}`;
+}
+
+// Re-compute selected sum on any input change
+document.querySelectorAll('.vinput').forEach(inp => {
+  inp.addEventListener('input', () => { updateSumDisplay(); clearSolveHighlight(); });
+});
+document.getElementById('targetInput').addEventListener('input', clearSolveHighlight);
+
+function getValues() {
+  return Array.from({length: SLOTS}, (_, i) => {
+    const v = document.getElementById(`v${i}`).value;
+    return v === '' ? NaN : +v;
+  });
+}
+
+function updateSumDisplay() {
+  const vals = getValues();
+  let sum = 0;
+  for (let i = 0; i < SLOTS; i++) {
+    if (toggles[i] && !isNaN(vals[i])) sum += vals[i];
+  }
+  document.getElementById('sumDisplay').textContent = `${sum} V`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// SUBSET-SUM SOLVER
+// ────────────────────────────────────────────────────────────────────────────
+function findCombination(numbers, target) {
+  const n = numbers.length;
+  for (let mask = 1; mask < (1 << n); mask++) {
+    let sum = 0; const sel = [];
+    for (let i = 0; i < n; i++) {
+      if (mask & (1 << i)) { sum += numbers[i]; sel.push(i); }
+    }
+    if (sum === target) return sel;
+  }
+  return null;
+}
+
+function clearSolveHighlight() {
+  document.querySelectorAll('.vcard').forEach(c => c.classList.remove('matched','unmatched'));
+  const r = document.getElementById('result');
+  r.className = 'result'; r.textContent = '';
+}
+
+document.getElementById('solveBtn').addEventListener('click', () => {
+  clearSolveHighlight();
+  const target = +document.getElementById('targetInput').value;
+  if (!document.getElementById('targetInput').value.trim()) {
+    showResult('Enter a target voltage.', 'err'); return;
+  }
+  const vals = getValues();
+  if (vals.some(isNaN)) {
+    showResult('Fill all 8 voltage fields first.', 'err'); return;
+  }
+
+  const idx = findCombination(vals, target);
+
+  if (!idx) {
+    showResult('No combination found that sums to the target.', 'err');
+    document.querySelectorAll('.vcard').forEach(c => c.classList.add('unmatched'));
+    return;
+  }
+
+  document.querySelectorAll('.vcard').forEach(c => {
+    const i = +c.dataset.i;
+    if (idx.includes(i)) { c.classList.add('matched'); applyToggle(i, true); }
+    else                  { c.classList.add('unmatched'); applyToggle(i, false); }
+  });
+  updateSumDisplay();
+
+  const chosen = idx.map(i => vals[i]).join(' + ');
+  showResult(`✓  ${chosen}  =  ${target} V`, 'ok');
+});
+
+function showResult(msg, cls) {
+  const r = document.getElementById('result');
+  r.textContent = msg; r.className = `result ${cls}`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// RESET
+// ────────────────────────────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', fullReset);
+
+function fullReset() {
+  clearSolveHighlight();
+  document.getElementById('targetInput').value = '';
+  for (let i = 0; i < SLOTS; i++) {
+    document.getElementById(`v${i}`).value = '';
+    applyToggle(i, false);
+    document.getElementById(`badge${i}`).classList.remove('on');
+    ocrBadges[i] = false;
+  }
+  updateSumDisplay();
+  // Reset image UI
+  document.getElementById('previewWrap').classList.remove('on');
+  document.getElementById('dropzone').style.display = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('ocrRow').classList.remove('on');
+  document.getElementById('ocrTips').style.display = '';
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// IMAGE LOAD
+// ────────────────────────────────────────────────────────────────────────────
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('fileInput');
+const previewWrap = document.getElementById('previewWrap');
+const previewImg  = document.getElementById('previewImg');
+
+dropzone.addEventListener('click', () => fileInput.click());
+
+dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadImageFile(f);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadImageFile(e.target.files[0]);
+});
+
+// Ctrl+V paste from clipboard
+document.addEventListener('paste', e => {
+  for (const item of (e.clipboardData?.items || [])) {
+    if (item.type.startsWith('image/')) {
+      loadImageFile(item.getAsFile()); break;
+    }
+  }
+});
+
+document.getElementById('clearImgBtn').addEventListener('click', () => {
+  previewWrap.classList.remove('on');
+  dropzone.style.display = '';
+  fileInput.value = '';
+  document.getElementById('ocrRow').classList.remove('on');
+  document.getElementById('ocrTips').style.display = '';
+});
+
+document.getElementById('reOcrBtn').addEventListener('click', () => {
+  if (previewImg.src) runOCR(previewImg);
+});
+
+function loadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  previewImg.onload = () => {
+    previewWrap.classList.add('on');
+    dropzone.style.display = 'none';
+    document.getElementById('ocrTips').style.display = 'none';
+    runOCR(previewImg);
+  };
+  previewImg.src = url;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// CANVAS PREPROCESSING PIPELINE
+// ────────────────────────────────────────────────────────────────────────────
+// Steps:
+//  1. Draw image to hidden canvas at OCR_SCALE × size
+//  2. Convert to grayscale using MAX(R,G,B) instead of luminance
+//  3. Apply contrast boost
+//  4. Binary threshold + invert → dark text on white background
+//
+// Why MAX channel? The red target text is brighter in the red channel than it is
+// in luminance space, so luminance can crush it. MAX(R,G,B) preserves those red
+// highlights much better while still lifting the white channel values.
+//
+// Why invert? Tesseract is trained on dark-text / light-bg documents.
+// The game has light text on dark navy, so we flip it.
+// ────────────────────────────────────────────────────────────────────────────
+function preprocessImage(img) {
+  const canvas = document.getElementById('ppCanvas');
+  const W = img.naturalWidth  * OCR_SCALE;
+  const H = img.naturalHeight * OCR_SCALE;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  // 1 · Upscaled draw
+  ctx.drawImage(img, 0, 0, W, H);
+
+  // 2 · Pixel processing
+  const id = ctx.getImageData(0, 0, W, H);
+  const d  = id.data;
+
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i];
+    const g = d[i + 1];
+    const b = d[i + 2];
+
+    // Preserve bright red UI text by taking the strongest channel, not luminance
+    const gray = Math.max(r, g, b);
+
+    // Contrast stretch: maps midpoint and pushes values apart
+    let c = ((gray / 255 - 0.5) * CONTRAST + 0.5) * 255;
+    c = Math.max(0, Math.min(255, c));
+
+    // Binary threshold, then invert for Tesseract
+    const out = c > THRESHOLD ? 0 : 255;
+
+    d[i] = d[i + 1] = d[i + 2] = out;
+    d[i + 3] = 255;
+  }
+
+  ctx.putImageData(id, 0, 0);
+  return canvas;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// OCR — Tesseract.js v4 with PSM 11 (sparse text — best for game UI grids)
+// ────────────────────────────────────────────────────────────────────────────
+async function runOCR(imgEl) {
+  const row    = document.getElementById('ocrRow');
+  const fill   = document.getElementById('ocrFill');
+  const txt    = document.getElementById('ocrTxt');
+
+  row.classList.add('on');
+  fill.style.width = '5%';
+  txt.textContent  = 'PREPROCESSING…';
+
+  // Preprocess
+  let processed;
+  try { processed = preprocessImage(imgEl); }
+  catch(e) { console.error('Preprocess error', e); processed = imgEl; }
+
+  fill.style.width = '15%';
+  txt.textContent  = 'INIT OCR…';
+  console.log('OCR config:', { workerPath: TESSERACT_WORKER_PATH, corePath: TESSERACT_CORE_PATH, langPath: TESSERACT_LANG_PATH });
+
+  try {
+    // Attempt PSM 11 (sparse text) first — ideal for scattered game UI numbers
+    const result = await ocrPass(processed, '11', fill, txt, 15, 88);
+
+    // If PSM 11 yields < 3 numbers, retry with PSM 6 (uniform block)
+    const nums11 = extractNumbers(result.text);
+    if (nums11.length < 3) {
+      fill.style.width = '90%';
+      txt.textContent = 'RETRY PSM 6…';
+      const result6 = await ocrPass(processed, '6', fill, txt, 90, 98);
+      const nums6   = extractNumbers(result6.text);
+      console.log('[PSM6 fallback]', result6.text);
+      populateFromNumbers(nums6.length >= nums11.length ? result6.text : result.text);
+    } else {
+      populateFromNumbers(result.text);
+    }
+
+    fill.style.width = '100%';
+    txt.textContent  = 'DONE ✓';
+    setTimeout(() => row.classList.remove('on'), 2000);
+
+  } catch(err) {
+    console.error('OCR failed', err);
+    txt.textContent = 'OCR ERROR';
+    fill.style.width = '0%';
+    setTimeout(() => row.classList.remove('on'), 2500);
+    showResult('⚠ OCR failed — enter values manually.', 'err');
+  }
+}
+
+async function ocrPass(source, psm, fill, txt, pctStart, pctEnd) {
+  const worker = Tesseract.createWorker({
+    workerPath: TESSERACT_WORKER_PATH,
+    corePath: TESSERACT_CORE_PATH,
+    langPath: TESSERACT_LANG_PATH,
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        const p = Math.round(pctStart + m.progress * (pctEnd - pctStart));
+        fill.style.width = `${p}%`;
+        txt.textContent  = `${p}%`;
+      } else if (m.status) {
+        txt.textContent = m.status.toUpperCase().replace(/_/g, '… ');
+      }
+    }
+  });
+
+  try {
+    await worker.load();
+    await worker.loadLanguage('eng');
+    await worker.initialize('eng');
+
+    await worker.setParameters({
+      tessedit_pageseg_mode: String(psm),
+      tessedit_char_whitelist: 'TARGET0123456789VvUuOo: \n',
+    });
+
+    const r = await worker.recognize(source);
+    console.log(`[PSM ${psm}] Raw OCR:`, r.data.text);
+    return r.data;
+  } finally {
+    await worker.terminate();
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// PARSE & POPULATE
+// ────────────────────────────────────────────────────────────────────────────
+function extractNumbers(text) {
+  // Replace common OCR confusions: O→0, U→V (so "UU" doesn't block digit parsing)
+  const norm = text.replace(/[Oo]/g, '0').replace(/[Uu]/g, 'V').toUpperCase();
+
+  // Strategy: find all digit sequences (2–4 digits) optionally followed by V
+  const matches = [...norm.matchAll(/(\d{1,4})\s*V?/g)];
+  return matches.map(m => parseInt(m[1])).filter(n => n > 0);
+}
+
+function populateFromNumbers(rawText) {
+  const norm = rawText.replace(/[Oo]/g, '0').replace(/[Uu]/g, 'V').toUpperCase();
+
+  // ── Find TARGET ──
+  let target = null;
+
+  // Look for "TARGET : 236V" or "TARGET: 236" patterns
+  const tMatch = norm.match(/TARGET\s*[:\-]?\s*(\d+)/);
+  if (tMatch) target = parseInt(tMatch[1]);
+
+  // ── Find all voltage values (NNV or NNN) ──
+  // Exclude the target value itself
+  const allVoltages = [];
+  const voltPat = /(\d{2,3})\s*[Vv]/g;
+  let m;
+  while ((m = voltPat.exec(norm)) !== null) {
+    const n = parseInt(m[1]);
+    if (n !== target) allVoltages.push(n);
+  }
+
+  // If we couldn't find TARGET label but have 9+ numbers, biggest is likely target
+  if (target === null && allVoltages.length >= 9) {
+    const sorted = [...allVoltages].sort((a,b) => b - a);
+    target = sorted[0];
+    allVoltages.splice(allVoltages.indexOf(target), 1);
+  }
+
+  console.log('Parsed → target:', target, '| voltages:', allVoltages);
+
+  // ── Populate fields ──
+  if (target !== null && target > 0) {
+    document.getElementById('targetInput').value = target;
+  }
+
+  const slots = allVoltages.slice(0, SLOTS);
+  slots.forEach((val, i) => {
+    document.getElementById(`v${i}`).value = val;
+    document.getElementById(`badge${i}`).classList.add('on');
+    ocrBadges[i] = true;
+  });
+
+  updateSumDisplay();
+
+  // ── Feedback ──
+  const missing = SLOTS - slots.length;
+  if (slots.length === 0 && target === null) {
+    showResult('⚠ OCR found no recognisable values. Edit fields manually.', 'err');
+  } else if (missing > 0 || target === null) {
+    showResult(
+      `⚠ Partial OCR: ${slots.length}/8 values found${target === null ? ', target missing' : ''}. Fill gaps manually.`,
+      'info'
+    );
+  } else {
+    showResult(`✓ OCR complete — ${slots.length} values loaded. Press SOLVE!`, 'ok');
+  }
+}
+</script>
+</body>
+</html>
