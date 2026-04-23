@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Number Matcher</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-1: #eef4ff;
+      --bg-2: #f8fbff;
+      --card: rgba(255, 255, 255, 0.9);
+      --card-border: rgba(255, 255, 255, 0.72);
+      --text: #142033;
+      --muted: #5b6b84;
+      --input-border: #d7dfeb;
+      --input-bg: rgba(255, 255, 255, 0.96);
+      --focus: #4c8bf5;
+      --focus-ring: rgba(76, 139, 245, 0.18);
+      --success-bg: #e7f8ec;
+      --success-border: #35a455;
+      --success-text: #176b31;
+      --error-bg: #fdecec;
+      --error-border: #db3b31;
+      --error-text: #9f231c;
+      --button-bg: linear-gradient(135deg, #4c8bf5, #2f6fe4);
+      --button-text: #ffffff;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, #dce8ff 0%, transparent 32%),
+        radial-gradient(circle at bottom right, #e6f7f0 0%, transparent 28%),
+        linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    }
+
+    .app {
+      width: min(92vw, 560px);
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      padding: 32px 28px 28px;
+      box-shadow:
+        0 22px 60px rgba(35, 58, 107, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtext {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 10px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 16px;
+    }
+
+    input {
+      width: 100%;
+      height: 56px;
+      border: 1.5px solid var(--input-border);
+      border-radius: 16px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 600;
+      text-align: center;
+      outline: none;
+      appearance: textfield;
+      -moz-appearance: textfield;
+      box-shadow: inset 0 1px 2px rgba(17, 24, 39, 0.04);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+    }
+
+    input::placeholder {
+      color: #97a4b8;
+      font-weight: 500;
+    }
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input:focus {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 5px var(--focus-ring);
+      transform: translateY(-1px);
+    }
+
+    input.match {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+      color: var(--success-text);
+      font-weight: 800;
+      box-shadow: 0 0 0 4px rgba(53, 164, 85, 0.12);
+    }
+
+    input.no-match {
+      background: var(--error-bg);
+      border-color: var(--error-border);
+      color: var(--error-text);
+      font-weight: 800;
+      box-shadow: 0 0 0 4px rgba(219, 59, 49, 0.1);
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 24px;
+    }
+
+    button {
+      min-width: 160px;
+      height: 50px;
+      padding: 0 22px;
+      border: none;
+      border-radius: 999px;
+      background: var(--button-bg);
+      color: var(--button-text);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      box-shadow: 0 14px 28px rgba(47, 111, 228, 0.22);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 30px rgba(47, 111, 228, 0.26);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 10px 18px rgba(47, 111, 228, 0.2);
+    }
+
+    .result {
+      margin-top: 18px;
+      min-height: 24px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .result.success {
+      color: var(--success-text);
+    }
+
+    .result.error {
+      color: var(--error-text);
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        padding: 24px 18px 22px;
+        border-radius: 22px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .grid {
+        gap: 12px;
+      }
+
+      input {
+        height: 52px;
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Number Matcher</h1>
+      <p class="subtext">Enter your target total and eight values. Matching boxes light up automatically.</p>
+    </div>
+
+    <div class="section">
+      <label for="total">Total No.</label>
+      <input id="total" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter total" value="" />
+    </div>
+
+    <div class="grid">
+      <input class="num-box" id="no1" type="text" inputmode="numeric" autocomplete="off" placeholder="No 1" value="" />
+      <input class="num-box" id="no2" type="text" inputmode="numeric" autocomplete="off" placeholder="No 2" value="" />
+      <input class="num-box" id="no3" type="text" inputmode="numeric" autocomplete="off" placeholder="No 3" value="" />
+      <input class="num-box" id="no4" type="text" inputmode="numeric" autocomplete="off" placeholder="No 4" value="" />
+      <input class="num-box" id="no5" type="text" inputmode="numeric" autocomplete="off" placeholder="No 5" value="" />
+      <input class="num-box" id="no6" type="text" inputmode="numeric" autocomplete="off" placeholder="No 6" value="" />
+      <input class="num-box" id="no7" type="text" inputmode="numeric" autocomplete="off" placeholder="No 7" value="" />
+      <input class="num-box" id="no8" type="text" inputmode="numeric" autocomplete="off" placeholder="No 8" value="" />
+    </div>
+
+    <div class="actions">
+      <button id="clearBtn" type="button">Clear All</button>
+    </div>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    const totalInput = document.getElementById('total');
+    const numberInputs = Array.from(document.querySelectorAll('.num-box'));
+    const allInputs = [totalInput, ...numberInputs];
+    const result = document.getElementById('result');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function cleanNumericInput(value) {
+      return value.replace(/[^0-9-]/g, '');
+    }
+
+    function clearHighlights() {
+      numberInputs.forEach((input) => {
+        input.classList.remove('match', 'no-match');
+      });
+      result.textContent = '';
+      result.className = 'result';
+    }
+
+    function areAllFieldsFilled() {
+      return totalInput.value.trim() !== '' && numberInputs.every((input) => input.value.trim() !== '');
+    }
+
+    function parseValues() {
+      const total = Number(totalInput.value);
+      const numbers = numberInputs.map((input, index) => ({
+        index,
+        value: Number(input.value),
+        raw: input.value.trim()
+      }));
+
+      return { total, numbers };
+    }
+
+    function findCombination(numbers, target) {
+      const n = numbers.length;
+      const maxMask = 1 << n;
+
+      for (let mask = 1; mask < maxMask; mask++) {
+        let sum = 0;
+        const selected = [];
+
+        for (let i = 0; i < n; i++) {
+          if (mask & (1 << i)) {
+            sum += numbers[i].value;
+            selected.push(numbers[i].index);
+          }
+        }
+
+        if (sum === target) {
+          return selected;
+        }
+      }
+
+      return null;
+    }
+
+    function setNoMatchState() {
+      numberInputs.forEach((input) => {
+        input.classList.add('no-match');
+      });
+      result.textContent = 'No exact match found.';
+      result.classList.add('error');
+    }
+
+    function runMatch() {
+      clearHighlights();
+
+      if (!areAllFieldsFilled()) {
+        return;
+      }
+
+      const { total, numbers } = parseValues();
+
+      if (Number.isNaN(total)) {
+        result.textContent = 'Enter a valid total.';
+        result.classList.add('error');
+        return;
+      }
+
+      if (numbers.some((item) => item.raw === '' || Number.isNaN(item.value))) {
+        result.textContent = 'Enter valid numbers in every box.';
+        result.classList.add('error');
+        return;
+      }
+
+      const matchIndexes = findCombination(numbers, total);
+
+      if (!matchIndexes) {
+        setNoMatchState();
+        return;
+      }
+
+      matchIndexes.forEach((originalIndex) => {
+        numberInputs[originalIndex].classList.add('match');
+      });
+
+      result.textContent = 'Match found.';
+      result.classList.add('success');
+    }
+
+    allInputs.forEach((input, index) => {
+      input.addEventListener('input', (event) => {
+        event.target.value = cleanNumericInput(event.target.value);
+        runMatch();
+      });
+
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (index < allInputs.length - 1) {
+            allInputs[index + 1].focus();
+          } else {
+            runMatch();
+          }
+        }
+
+        if (event.key === 'Backspace' && input.value === '' && index > 0) {
+          allInputs[index - 1].focus();
+        }
+      });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      allInputs.forEach((input) => {
+        input.value = '';
+      });
+      clearHighlights();
+      totalInput.focus();
+    });
+
+    function applyMatchStateForTest(inputStates, matchIndexes) {
+      return inputStates.map((_, index) => matchIndexes.includes(index) ? 'match' : 'plain');
+    }
+
+    function applyNoMatchStateForTest(inputStates) {
+      return inputStates.map(() => 'no-match');
+    }
+
+    function runTests() {
+      console.assert(cleanNumericInput('12a-3!') === '12-3', 'cleanNumericInput should strip non-numeric characters');
+
+      const combo1 = findCombination(
+        [
+          { index: 0, value: 80 },
+          { index: 1, value: 54 },
+          { index: 2, value: 41 }
+        ],
+        175
+      );
+      console.assert(JSON.stringify(combo1) === JSON.stringify([0, 1, 2]), 'findCombination should find an exact match');
+
+      const combo2 = findCombination(
+        [
+          { index: 0, value: 73 },
+          { index: 1, value: 61 },
+          { index: 2, value: 14 }
+        ],
+        137
+      );
+      console.assert(combo2 === null, 'findCombination should return null when no exact match exists');
+
+      const combo3 = findCombination(
+        [
+          { index: 0, value: 77 },
+          { index: 1, value: 68 },
+          { index: 2, value: 67 },
+          { index: 3, value: 57 },
+          { index: 4, value: 57 }
+        ],
+        326
+      );
+      console.assert(JSON.stringify(combo3) === JSON.stringify([0, 1, 2, 3, 4]), 'findCombination should support repeated values in different boxes');
+
+      const visualState = applyMatchStateForTest(new Array(8).fill('plain'), [2, 3, 7]);
+      console.assert(visualState[2] === 'match' && visualState[3] === 'match' && visualState[7] === 'match', 'Matched boxes should be flagged in test state');
+      console.assert(visualState[0] === 'plain', 'Non-matching boxes should stay plain in test state');
+
+      const noMatchState = applyNoMatchStateForTest(new Array(8).fill('plain'));
+      console.assert(noMatchState.every((state) => state === 'no-match'), 'No-match state should mark all boxes red');
+    }
+
+    runTests();
+    clearBtn.click();
+  </script>
+</body>
+</html>
